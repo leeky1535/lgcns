@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>AGV</title>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/3.0.0/socket.io.min.js"></script>
+</head>
+<body style="width: 200px; height: 100px; text-align: center; background-color: white">
+    <h3>AGV {{no}} </h3>
+    <div id="agv-info">
+    </div>
+</body>
+<script>
+    var agvStatus = {
+    'DATA_TYPE':'report',
+    'AGV_NO':'AGV00001',
+    'LOCATION':'00010002',
+    'STATE':'1',
+    'MODE':'1',
+    'DIRECTION':'0',
+    'MAX_VELOCITY':'2.5',
+    'TILT_MAX_ANGLE':'20',
+    'BELT_MAX_SPEED':'1.5',
+    'COMMAND_WAIT_TIME':'10',
+    'MIN_VOLTAGE':'15.6',
+    'BATTERY_LVL':'30',
+    'AGV_FIRMWARE_VERSION':'1.01'
+    };
+    agvStatus['AGV_NO'] = {{no}}
+    var agvNo = {{no}};
+    var alarmCD = Array(50);
+    alarmCD[11] = '현 위치확인 안됨';
+    alarmCD[12] = '직진 후, 위치 오류';
+    alarmCD[13] = '우 90도회전 후, 위치 오류';
+    alarmCD[14] = '좌 90도회전 후, 위치 오류';
+    alarmCD[15] = '180도 회전 후, 위치 오류';
+    alarmCD[16] = '후진 후, 위치 오류';
+    alarmCD[21] = 'LOW BATTERY';
+    alarmCD[22] = '과전류 발생';
+    alarmCD[31] = 'Belt 구동 실패';
+    alarmCD[32] = 'Tray 구동 실패';
+
+    var socket = io('http://' + document.domain + ':' + location.port);
+
+    $(document).ready(function(){
+    });
+
+    socket.on('connect', function() {
+        agvStatus['LOCATION'] = Math.floor(Math.random()*30) + ',' + Math.floor(Math.random()*10);
+        socket.emit('authenticate', {'AGV_NO':agvNo, 'LOCATION': agvStatus['LOCATION']});
+    });
+
+    socket.on('authenticationSuccess', function(data) {
+        if(data['AGV_NO'] == agvNo) {
+            event = setInterval(function() {
+            var random = Math.floor(Math.random() * 50);
+            if(alarmCD[random] != undefined) {
+                data = {'CODE':random, 'AGV_NO': agvNo, 'LOCATION': agvStatus['LOCATION']};
+                socket.emit('alarmFromClient', data);
+                $('body').css('background-color', 'red');
+                $("#agv-info").html(alarmCD[random]);
+                setTimeout(function() {
+                    socket.emit('alarmStopFromClient', {'CODE':random, 'AGV_NO': agvNo, 'LOCATION': agvStatus['LOCATION']});
+                    $('body').css('background-color', 'white')
+                    $("#agv-info").html('');
+                }, 5000);
+            }
+        }, 7000)
+        }
+    })
+
+    socket.on('authenticationFail', function(data) {
+        if(data['AGV_NO'] == agvNo) {
+            $('body').css('background-color', 'blue');
+            $("#agv-info").html("연결 불가");
+            socket.disconnect();
+        }
+    })
+
+    socket.on('agvStatusRequest', function(data) {
+        if(data == agvNo)
+        socket.emit('agvStatusResponse', agvStatus);
+    });
+
+
+/*  11 : 현 위치확인 안됨
+    12 : 직진 후, 위치 오류
+    13 : 우 90도회전 후, 위치 오류
+    14 : 좌 90도회전 후, 위치 오류
+    15 : 180도 회전 후, 위치 오류
+    16 : 후진 후, 위치 오류
+    21 : LOW BATTERY
+    22 : 과전류 발생
+    31 : Belt 구동 실패
+    32 : Tray 구동 실패     */
+
+
+</script>
+</html>
